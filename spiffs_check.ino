@@ -4,6 +4,11 @@
 
 bool firstStart = false; // если устройство не настроено
 
+String wifi_ssid;
+String wifi_pass;
+int updateInterval;
+
+
 // создание объекта Webserver
 AsyncWebServer server(80);
 
@@ -93,6 +98,26 @@ void setup() {
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
+  server.on("/send", HTTP_GET, [](AsyncWebServerRequest *request){
+    int paramsNr = request->params();
+    Serial.println(paramsNr);
+    for(int i = 0; i<paramsNr; i++){
+      AsyncWebParameter* p = request->getParam(i); 
+      Serial.print("Param name: ");
+      Serial.println("Param " + p->name() + ": " + p->value());
+
+      if(p->name() == "ssid") {
+        wifi_ssid = p->value();
+      }
+      if(p->name() == "pass") {
+        wifi_pass = p->value();
+      }
+      if(p->name() == "updateInterval"){
+        updateInterval = (p->value()).toInt();
+      }
+    }
+    request->send(200,"text/plain", "Data saved");
+    });
   
   
 }
