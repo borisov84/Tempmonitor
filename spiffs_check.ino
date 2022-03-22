@@ -1,6 +1,7 @@
 #include <WiFi.h>
-#include "SPIFFS.h"
 #include <ESPAsyncWebServer.h>
+#include <SPIFFSIniFile.h>
+#include "SPIFFS.h"
 
 bool firstStart = false; // если устройство не настроено
 
@@ -9,6 +10,9 @@ String wifi_pass;
 String remoteServer;
 int updateInterval;
 
+// для Ini-файлов
+const size_t bufferLen = 80;
+char buffer[bufferLen];
 
 // создание объекта Webserver
 AsyncWebServer server(80);
@@ -54,8 +58,8 @@ void get_index(){
 bool check_settings(){
   Serial.println("Checking settings.ini file...");
 
-  if(SPIFFS.exists("/settin.ini")){
-    Serial.println("File settings.ok");  
+  if(SPIFFS.exists("/settings.ini")){
+    Serial.println("File settings: ok");  
     firstStart = false;
   }
   else{
@@ -67,6 +71,94 @@ bool check_settings(){
 }
 
 
+void printErrorMessage(uint8_t e, bool eol = true)
+{
+  switch (e) {
+  case SPIFFSIniFile::errorNoError:
+    Serial.print("no error");
+    break;
+  case SPIFFSIniFile::errorFileNotFound:
+    Serial.print("file not found");
+    break;
+  case SPIFFSIniFile::errorFileNotOpen:
+    Serial.print("file not open");
+    break;
+  case SPIFFSIniFile::errorBufferTooSmall:
+    Serial.print("buffer too small");
+    break;
+  case SPIFFSIniFile::errorSeekError:
+    Serial.print("seek error");
+    break;
+  case SPIFFSIniFile::errorSectionNotFound:
+    Serial.print("section not found");
+    break;
+  case SPIFFSIniFile::errorKeyNotFound:
+    Serial.print("key not found");
+    break;
+  case SPIFFSIniFile::errorEndOfFile:
+    Serial.print("end of file");
+    break;
+  case SPIFFSIniFile::errorUnknownError:
+    Serial.print("unknown error");
+    break;
+  default:
+    Serial.print("unknown error value");
+    break;
+  }
+  if (eol)
+    Serial.println();
+}
+
+void readIni(){
+    SPIFFSIniFile ini("/settings.ini");
+    if (!ini.open()) {
+    Serial.print("Ini file ");
+    Serial.print("/settings.ini");
+    Serial.println(" does not exist");
+    // Cannot do anything else
+    while (1)
+      ;
+    }
+    // Check the file is valid. This can be used to warn if any lines
+    // are longer than the buffer.
+    if (!ini.validate(buffer, bufferLen)) {
+      Serial.print("ini file ");
+      Serial.print(ini.getFilename());
+      Serial.print(" not valid: ");
+      printErrorMessage(ini.getError());
+      // Cannot do anything else
+      while (1)
+        ;
+    }
+    
+    
+    Serial.println("Getting settings from settings.ini");
+    
+    if (ini.getValue("wifi", "wifi_ssid", buffer, bufferLen)) {
+      Serial.print("section 'wifi' has an entry 'wifi_ssid' with value ");
+      Serial.println(buffer);
+      wifi_ssid = buffer;
+    }
+    else {
+      Serial.print("Could not read 'wifi_ssid' from section 'wifi', error was ");
+      printErrorMessage(ini.getError());
+    }
+
+    if (ini.getValue("wifi", "wifi_pass", buffer, bufferLen)) {
+      Serial.print("section 'wifi' has an entry 'wifi_pass' with value ");
+      Serial.println(buffer);
+      wifi_pass = buffer;
+    }
+    else {
+      Serial.print("Could not read 'wifi_pass' from section 'wifi', error was ");
+      printErrorMessage(ini.getError());
+    }
+    
+}
+
+
+
+
 void initWifi(bool firstSt){
   Serial.println("Starting wifi...");
   if(firstSt){
@@ -76,7 +168,23 @@ void initWifi(bool firstSt){
     Serial.println(IP);
   }
   else{
-    Serial.println("Connecting to Wifi...");
+   
+   readIni();    
+   Serial.println("Connecting to Wifi...");
+   
+   Serial.println(wifi_ssid.c_str());
+   Serial.println(wifi_pass.c_str());
+   
+   WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
+   while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
   }
 }
 
@@ -134,7 +242,7 @@ void makeIni(){
   iniFile += "updateInterval=" + String(updateInterval) + "\n";
   iniFile += "[remote]\nserver=" + remoteServer;
   
-  File file=SPIFFS.open("/ss.ini",FILE_WRITE);
+  File file=SPIFFS.open("/settings.ini",FILE_WRITE);
   if(!file){
     Serial.println("Cant open file for write");
   }
