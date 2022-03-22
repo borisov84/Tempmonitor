@@ -6,6 +6,7 @@ bool firstStart = false; // если устройство не настроен�
 
 String wifi_ssid;
 String wifi_pass;
+String remoteServer;
 int updateInterval;
 
 
@@ -92,7 +93,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   spiffs_begin();
-  get_index();
+//  get_index();
   initWifi(check_settings());
   server.begin();
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -115,11 +116,33 @@ void setup() {
       if(p->name() == "updateInterval"){
         updateInterval = (p->value()).toInt();
       }
+      if(p->name() == "remoteServer"){
+        remoteServer = p->value();
+      }
     }
-    request->send(200,"text/plain", "Data saved");
+    request->send(200,"text/plain", "Data saved. Reboot...");
+    makeIni();
     });
+}
+
+void makeIni(){
+  String iniFile;
+  iniFile = "[wifi]\nwifi_ssid=" + wifi_ssid + "\n";
+  iniFile += "wifi_pass=" + wifi_pass + "\n";
+  iniFile += "[general]\n";
+  iniFile += "delayLoading=1000\n";
+  iniFile += "updateInterval=" + String(updateInterval) + "\n";
+  iniFile += "[remote]\nserver=" + remoteServer;
   
-  
+  File file=SPIFFS.open("/ss.ini",FILE_WRITE);
+  if(!file){
+    Serial.println("Cant open file for write");
+  }
+  else{
+    file.print(iniFile);
+    Serial.println("File settings.ini: ok");
+  }
+  file.close();
 }
 
 void loop() {
