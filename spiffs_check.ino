@@ -27,6 +27,24 @@ void remFile(){
   }
 }
 
+
+void get_index(){
+  File file = SPIFFS.open("/index.html");
+  if(!file){
+    Serial.println("Failed to open file for reading");
+               //  "Не удалось открыть файл для чтения"
+    return;
+  }
+  
+  Serial.println("File Content:");
+             //  "Содержимое файла:"
+  while(file.available()){
+    Serial.write(file.read());
+  }
+  file.close();
+}
+
+
 bool check_settings(){
   Serial.println("Checking settings.ini file...");
 
@@ -69,6 +87,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   spiffs_begin();
+  get_index();
   initWifi(check_settings());
   server.begin();
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
