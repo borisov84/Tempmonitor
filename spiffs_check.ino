@@ -160,6 +160,8 @@ void readIni() {
 
 
 void initWifi(bool firstSt) {
+  int connect_count;
+  connect_count = 0;
   Serial.println("Starting wifi...");
   if (firstSt) {
     Serial.println("Starting acces point mode");
@@ -168,7 +170,6 @@ void initWifi(bool firstSt) {
     Serial.println(IP);
   }
   else {
-
     readIni();
     Serial.println("Connecting to Wifi...");
 
@@ -179,6 +180,16 @@ void initWifi(bool firstSt) {
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
       Serial.print(".");
+	  connect_count += 1;
+	  if (connect_count == 5) {
+		if (SPIFFS.remove("/settings.ini")) {
+          Serial.println("File settings.ini succesfuly deleted");
+        }
+        else{
+          Serial.println("File settings.ini not found. Nothing to delete");
+        }
+	  }
+	  ESP.restart();
     }
 
     Serial.println("");
@@ -197,6 +208,7 @@ String processor(const String& var) {
   return String();
 }
 
+// Функция создания нового файла с настройками при первом запуске
 void makeIni() {
   String iniFile;
   iniFile = "[wifi]\nwifi_ssid=" + wifi_ssid + "\n";
@@ -224,8 +236,19 @@ void setup() {
   //  get_index();
   initWifi(check_settings());
   server.begin();
+  // стартовая страница
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/index.html", String(), false, processor);
+	request->send(SPIFFS, "/index.html", String());
+  });
+  
+  // страница с показаниями
+  server.on("/mes", HTTP_GET, [] (AsyncWebServerRequest * request){
+	request->send(SPIFFS, "/mes.html",String(), false, processor);  
+  });
+  
+  // страница базовых настроек
+  server.on("/new", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/new.html", String());
   });
   // при первой настройке вводятся настройки wifi сети и др параметров
   server.on("/send", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -252,14 +275,14 @@ void setup() {
     request->send(200, "text/plain", "Data saved. Reboot...");
     makeIni();
   });
+  
+  // если надо сбросить настройки прибора
   server.on("/reset", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/reset.html", String());
   });
+  // сброс устройства по запросу get
   server.on("/factoryreset", HTTP_GET, [](AsyncWebServerRequest * request) {
-    int paramsNr = request->params();
-    Serial.println(paramsNr);
-    for (int i = 0; i < paramsNr; i++) {
-      AsyncWebParameter* p = request->getParam(i);
+      AsyncWebParameter* p = request->getParam(0);
       if (p->name() == "yes") {
         if (SPIFFS.remove("/settings.ini")) {
           Serial.println("File settings.ini succesfuly deleted");
@@ -267,8 +290,9 @@ void setup() {
         else{
           Serial.println("File settings.ini not found. Nothing to delete");
         }
+		ESP.restart();
       }
-    }
+    
     request->send(200, "text/plain", "Reseting...");
   });
 }
