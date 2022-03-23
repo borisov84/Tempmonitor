@@ -12,7 +12,7 @@
   </style>
  </head>
  <body>
-  <p>Привет, %STATE%</p>
+<p>Укажите базовые настройки</p>
   <form action="send">
   <label for="GET-SSID">SSID:</label>
   <input id="GET-SSID" type="text" name="ssid"><br/>
@@ -25,6 +25,8 @@
     <option value="1800">30 минут</option>
     <option value="3600">1 час</option>
    </select><br/>
+   <label for="GET-timeoffset">Смещение времени:</label>
+  <input id="GET-timeoffset" type="text" name="timeoffset" placeholder="1 час - 3600"><br/>
   <label for="GET-remServer">Удаленный сервер</label>
   <input id="GET-remServer" type="url" name="remoteServer" placeholder="http://..."></br>
   <input type="submit" value="Сохранить">
