@@ -181,15 +181,18 @@ void initWifi(bool firstSt) {
       delay(500);
       Serial.print(".");
 	  connect_count += 1;
-	  if (connect_count == 5) {
+	  Serial.print("Connect attempt: ");
+	  Serial.println(connect_count);
+	  if (connect_count == 15) {
 		if (SPIFFS.remove("/settings.ini")) {
           Serial.println("File settings.ini succesfuly deleted");
+		  ESP.restart();
         }
         else{
           Serial.println("File settings.ini not found. Nothing to delete");
         }
 	  }
-	  ESP.restart();
+	  
     }
 
     Serial.println("");
