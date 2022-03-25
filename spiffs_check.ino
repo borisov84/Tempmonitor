@@ -23,7 +23,7 @@
 #include <SimpleTimer.h>
 
 //для LCD экрана
-// #include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h>
 #include <LCD_1602_RUS.h> // русские буквы
 
 #define Btn_GPIO 34
@@ -598,7 +598,7 @@ void setup() {
         remoteServer = p->value();
       }
       if (p->name() == "timeOffset") {
-        timeOffset = p->value();
+        timeOffset = atoi(p->value());
       }
     }
     request->send(200, "text/plain", "Data saved. Reboot...");
