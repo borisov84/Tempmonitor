@@ -32,6 +32,7 @@
 
 
 bool firstStart = false; // если устройство не настроено
+bool sdExist = true; // есть ли Sd карта
 
 String wifi_ssid;
 String wifi_pass;
@@ -134,18 +135,23 @@ void initMcSD() {
     secondLine1 = "SD карта не смонтирована";
     lcd_change(0);
     delay(500);
+    sdExist = false;
   }
 
   uint8_t cardType = SD.cardType();
 
-  while (cardType == CARD_NONE) {
+  if (cardType == CARD_NONE) {
     Serial.println("No SD card attached");
     secondLine1 = "SD карта не найдена";
     lcd_change(0);
+    sdExist = false;
   }
-  firstLine1 = "Загрузка...";
-  secondLine1 = "SD Card: Ok";
-  lcd_change(0);
+  else {
+    firstLine1 = "Загрузка...";
+    secondLine1 = "SD Card: Ok";
+    lcd_change(0);
+    sdExist = true;
+  }
 }
 
 
@@ -158,7 +164,7 @@ void spiffs_begin() {
   }
 }
 
-// удаление файла
+// удаление файла настроек (сброс на заводские настройки)
 void factReset() {
   if (SPIFFS.remove("/settings.ini")) {
     Serial.println("File settings.ini successfully deleted");
@@ -170,7 +176,7 @@ void factReset() {
   }
 }
 
-// чтение index.html
+// чтение index.html TODO: потом удалить
 void get_index() {
   File file = SPIFFS.open("/index.html");
   if (!file) {
@@ -319,7 +325,7 @@ void readIni() {
 
 }
 
-// инициализация Wifi: если firstStart = true, то создаем точку доступа, 
+// инициализация Wifi: если firstStart = true, то создаем точку доступа,
 // если false, то пробуем подключиться к сети Wifi
 void initWifi(bool firstSt) {
   int connect_count;
@@ -334,6 +340,7 @@ void initWifi(bool firstSt) {
   else {
     // читаем настройки перед подключением
 	readIni();
+  // вывод в com-порт данных о Wifi сети и пароле, для контроля
     Serial.println("Connecting to Wifi...");
     Serial.println("Wifi: " + wifi_ssid);
     Serial.println("Password: " + wifi_pass);
@@ -348,13 +355,13 @@ void initWifi(bool firstSt) {
 	  // если количество попыток превышено, то сбрасываем на заводские (вдруг ошибка в параметрах wifi) и перезагружаем
 	  if (connect_count == 15) {
 		factReset();
-		delay(3000);
+		delay(3000); // ждем 3 секунды для удаления файла
 		ESP.restart();
 	  }
 	}
     Serial.println("");
     Serial.println("WiFi connected");
-    Serial.println("IP address: ");
+    Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
   }
 }
@@ -412,6 +419,7 @@ void makeIni() {
   iniFile += "[general]\n";
   iniFile += "delayLoading=1000\n";
   iniFile += "updateInterval=" + String(updateInterval) + "\n";
+  iniFile += "timeOffset=" + String(timeOffset) + "\n";
   iniFile += "[remote]\nserver=" + remoteServer;
 
   File file = SPIFFS.open("/settings.ini", FILE_WRITE);
@@ -461,6 +469,7 @@ void writeFile(fs::FS &fs, const char * path, String message) // const char * me
   file.close();
 }
 
+// функция отрпавки данных на удаленный сервер
 void sendData(String date, String tim, String temp, String hum) {
   HTTPClient http;
   WiFiClient client;
@@ -479,27 +488,16 @@ void sendData(String date, String tim, String temp, String hum) {
   http.end();
 }
 
-
-void setup() {
-  // обработка прерывания
-  pinMode(Btn_GPIO, INPUT);
-
-  attachInterrupt(Btn_GPIO, chTxt, RISING);
-  // bнициализация последовательного соединение и выбор скорость передачи данных в бит/c
-  Serial.begin(115200);
-  Serial.println("Start bootnig...");
-  spiffs_begin();
-  //  get_index();
-  initWifi(check_settings());
-  
-  // инициализация LCD-экрана
+// инициализация экрана
+void lcdinit() {
   lcd.init();
   lcd.backlight();
   firstLine1 = "Загрузка...";
   lcd_change(0);
-  delay(loadingDelay);
+}
 
-  // инициализация датчика BME280
+// инициализация датчика
+void bmeinit() {
   Serial.println("Init BME280...");
   bool status;
   status = bme.begin(0x76);
@@ -514,18 +512,40 @@ void setup() {
     secondLine1 = "BME280: Ok";
     lcd_change(0);
   }
+}
+
+void setup() {
+  // обработка прерывания
+  pinMode(Btn_GPIO, INPUT);
+  attachInterrupt(Btn_GPIO, chTxt, RISING);
+
+  // Инициализация последовательного соединение и выбор скорость передачи данных в бит/c
+  Serial.begin(115200);
+  Serial.println("Bootnig...");
+  spiffs_begin();
+  //  get_index();
+
+  // инициализация LCD-экрана
+  lcdinit();
+  delay(loadingDelay);
+
+  // инициализация датчика BME280
+  bmeinit();
   delay(loadingDelay);
 
   // инициализация модуля MicroSD
   initMcSD();
   delay(loadingDelay);
+
+  // подключение к Wifi
+  initWifi(check_settings());
+
   // получение времени от NTP
   getNTPtime();
   delay(loadingDelay * 2);
 
   firstLine2 = "WiFi:" + wifi_ssid;
   lcd_change(1);
-
   secondLine2 = "IP:" + WiFi.localIP().toString();
   lcd_change(1);
   delay(loadingDelay);
@@ -534,24 +554,24 @@ void setup() {
   lcd_change(0);
 
   // установка таймера
-  firstTimer.setInterval(delayTime); 
+  firstTimer.setInterval(delayTime);
 
   // запуск FTP сервера
   ftpSrv.begin("esp32", "esp32");
-  
+
   // запуск ElegantOTA и сервера
-  AsyncElegantOTA.begin(&server);    
+  AsyncElegantOTA.begin(&server);
   server.begin();
   // стартовая страница
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
 	request->send(SPIFFS, "/index.html", String());
   });
-  
+
   // страница с показаниями
   server.on("/mes", HTTP_GET, [] (AsyncWebServerRequest * request){
-	request->send(SPIFFS, "/mes.html",String(), false, processor);  
+	request->send(SPIFFS, "/mes.html",String(), false, processor);
   });
-  
+
   // страница базовых настроек
   server.on("/new", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/new.html", String());
@@ -577,11 +597,14 @@ void setup() {
       if (p->name() == "remoteServer") {
         remoteServer = p->value();
       }
+      if (p->name() == "timeOffset") {
+        timeOffset = p->value();
+      }
     }
     request->send(200, "text/plain", "Data saved. Reboot...");
     makeIni();
   });
-  
+
   // если надо сбросить настройки прибора
   server.on("/reset", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/reset.html", String());
@@ -598,7 +621,7 @@ void setup() {
         }
 		ESP.restart();
       }
-    
+
     request->send(200, "text/plain", "Reseting...");
   });
 }
@@ -608,24 +631,24 @@ void setup() {
 void loop() {
   // Обработка FTP
 	ftpSrv.handleFTP();
-	
+
 	if (prev_md != md) // если нажималась кнопка и режим md сменился, то меняем текст на экране
   {
     lcd_change(md);
     prev_md = md;
     Serial.println("Prev_md changed");
   }
-  
+
   if (firstTimer.isReady()) {
 
 
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "timerReady\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "timerReady\n");
     //    Serial.println(ESP.getFreeHeap());
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "updateTime\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "updateTime\n");
     if (WiFi.status() == WL_CONNECTED) {
       while (!timeClient.update()) {
         Serial.println("Time is updated");
-        writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "time Updated\n");
+        if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "time Updated\n");
         timeClient.forceUpdate();
         if (WiFi.status() != WL_CONNECTED){
           break;
@@ -654,32 +677,32 @@ void loop() {
     secondLine1 = "Hum:  " + curHumidity + " %";
     Serial.println(dayStamp + " " + timeStamp + " " + firstLine1 + " " + secondLine1);
     //записываем данные в файл на сд-карту
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "write data to file\n");
-    writeFile(SD, data_file_ch, dayStamp + ";" + timeStamp + ";" + String(bme.readTemperature(), 2) + " C;" + String(bme.readHumidity(), 2) + "%\n");
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Data wrote ok\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "write data to file\n");
+    if (sdExist) writeFile(SD, data_file_ch, dayStamp + ";" + timeStamp + ";" + String(bme.readTemperature(), 2) + " C;" + String(bme.readHumidity(), 2) + "%\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Data wrote ok\n");
 
     // отправляем страницу на сервер
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "webserver update page\n");
-    
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "webserver update page\n");
+
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html"); // SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
     });
-    
+
 //    server.send(200, "text/html", SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "webserver update ok\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "webserver update ok\n");
     if (md == 0) lcd_change(0);
 
     // отправка на сервер
-    writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Send data to remote server\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Send data to remote server\n");
     if (WiFi.status() == WL_CONNECTED) {
       Serial.println("Wifi connected. Sending data...");
-      writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Wifi connected. Send data\n");
+      if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Wifi connected. Send data\n");
       sendData(dayStamp, timeStamp, curTemperature, curHumidity);
-      writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Send data ok\n");
+      if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Send data ok\n");
     }
     else {
       Serial.println("No wifi connection!");
-      writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Wifi not connected. Restart\n");
+      if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Wifi not connected. Restart\n");
       ESP.restart();
     }
     firstTimer.reset();
