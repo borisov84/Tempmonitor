@@ -598,7 +598,7 @@ void setup() {
         remoteServer = p->value();
       }
       if (p->name() == "timeOffset") {
-        timeOffset = atoi(p->value());
+        timeOffset = (p->value()).toInt();
       }
     }
     request->send(200, "text/plain", "Data saved. Reboot...");
