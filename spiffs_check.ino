@@ -23,7 +23,7 @@
 #include <SimpleTimer.h>
 
 //для LCD экрана
-#include <LiquidCrystal_I2C.h>
+//#include <LiquidCrystal_I2C.h>
 #include <LCD_1602_RUS.h> // русские буквы
 
 #define Btn_GPIO 34
@@ -87,7 +87,7 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
 // создание объекта lcd
-LiquidCrystal_I2C lcd(0x3F, 16, 2);
+LCD_1602_RUS lcd(0x3F, 16, 2);
 
 // функция для изменения режимов отображения экрана (через прерывания)
 void IRAM_ATTR chTxt()
@@ -165,14 +165,26 @@ void spiffs_begin() {
 }
 
 // удаление файла настроек (сброс на заводские настройки)
-void factReset() {
-  if (SPIFFS.remove("/settings.ini")) {
-    Serial.println("File settings.ini successfully deleted");
-    //  "Файл успешно удален"
+void factReset(String mod) {
+  if (mod == "all"){
+    if (SPIFFS.remove("/settings.ini")) {
+      Serial.println("File settings.ini successfully deleted");
+      //  "Файл успешно удален"
+    }
+    else {
+      Serial.print("Deleting file failed!");
+      //  "Не удалось удалить файл!"
+    }
   }
-  else {
-    Serial.print("Deleting file failed!");
-    //  "Не удалось удалить файл!"
+  if (mod == "wifi") {
+    if (SPIFFS.remove("/wifi.ini")) {
+      Serial.println("File wifi.ini successfully deleted");
+      //  "Файл успешно удален"
+    }
+    else {
+      Serial.print("Deleting file failed!");
+      //  "Не удалось удалить файл!"
+    }
   }
 }
 
@@ -197,12 +209,12 @@ void get_index() {
 bool check_settings() {
   Serial.println("Checking settings.ini file...");
 
-  if (SPIFFS.exists("/settings.ini")) {
-    Serial.println("File settings: ok");
+  if (SPIFFS.exists("/settings.ini") & SPIFFS.exists("/wifi.ini")) {
+    Serial.println("File settings and wifi: ok");
     firstStart = false;
   }
   else {
-    Serial.println("File settings.ini not found");
+    Serial.println("File settings.ini or wifi.ini not found");
     Serial.println("First start activated");
     firstStart = true;
   }
@@ -348,19 +360,67 @@ void initWifi(bool firstSt) {
   int connect_count;
   connect_count = 0;
   Serial.println("Starting wifi...");
+
+  // Есил firstSt = true, то необходимо создать точку доступа
+
   if (firstSt) {
+    secondLine1 = "Запуск AP";
+    lcd_change(0);
+    delay(loadingDelay);
     Serial.println("Starting access point mode");
     WiFi.softAP("Thermo", "12345678");
     IPAddress IP = WiFi.softAPIP();
     Serial.println(IP);
+    firstLine1="Thermo";
+    secondLine1=IP.toString();
+    lcd_change(0);
+    // страница базовых настроек
+    server.begin();
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+      request->send(SPIFFS, "/new.html", String());
+    });
+    // при первой настройке вводятся настройки wifi сети и др параметров
+    server.on("/send", HTTP_GET, [](AsyncWebServerRequest * request) {
+      int paramsNr = request->params();
+      Serial.println(paramsNr);
+      for (int i = 0; i < paramsNr; i++) {
+        AsyncWebParameter* p = request->getParam(i);
+        Serial.print("Param name: ");
+        Serial.println("Param " + p->name() + ": " + p->value());
+
+        if (p->name() == "ssid") {
+          if (p->value() != "") wifi_ssid = p->value();
+        }
+        if (p->name() == "pass") {
+          if (p->value() != "") wifi_pass = p->value();
+        }
+        if (p->name() == "updateInterval") {
+          if (p->value() != "") updateInterval = (p->value()).toInt();
+        }
+        if (p->name() == "remoteServer") {
+          if (p->value() != "") remoteServer = p->value();
+          Serial.println(remoteServer);
+        }
+        if (p->name() == "timeOffset") {
+          if (p->value() != "") timeOffset = (p->value()).toInt();
+        }
+      }
+      request->send(200, "text/plain", "Data saved. Reboot...");
+      makeIni();
+    });
   }
   else {
     // читаем настройки перед подключением
-	readIni();
+	readIniWifi();
   // вывод в com-порт данных о Wifi сети и пароле, для контроля
     Serial.println("Connecting to Wifi...");
     Serial.println("Wifi: " + wifi_ssid);
     Serial.println("Password: " + wifi_pass);
+
+    firstLine1 = "Подключение";
+    secondLine1 = wifi_ssid;
+    lcd_change(0);
+
 
     WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
     while (WiFi.status() != WL_CONNECTED) {
@@ -371,7 +431,7 @@ void initWifi(bool firstSt) {
 	  Serial.println(connect_count);
 	  // если количество попыток превышено, то сбрасываем на заводские (вдруг ошибка в параметрах wifi) и перезагружаем
 	  if (connect_count == 15) {
-		factReset();
+		factReset("wifi");
 		delay(3000); // ждем 3 секунды для удаления файла
 		ESP.restart();
 	  }
@@ -380,12 +440,15 @@ void initWifi(bool firstSt) {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    server.begin();
+    readIni();
   }
 }
 
 // функция обновления времени с NTP-сервера
 void getNTPtime() {
   timeClient.begin();
+  Serial.println("Установка времени");
   // Установка часового пояса (смещения от GMT): 1 час - 3600, 18000 - Екатеринбург +5
   timeClient.setTimeOffset(timeOffset);
 
@@ -395,13 +458,13 @@ void getNTPtime() {
   }
   // вывод даты и времени в формате YYYY-MM-DDTHH:mm:ssZ
   formattedDate = timeClient.getFormattedDate();
-  Serial.println("Current date: " + formattedDate);
+  Serial.println("Текущая дата: " + formattedDate);
 
   // вывод даты и времени
   int splitT = formattedDate.indexOf("T");
   dayStamp = formattedDate.substring(0, splitT);
   timeStamp = formattedDate.substring(splitT + 1, formattedDate.length() - 1); // время
-  Serial.print("Today is: ");
+  Serial.print("Сегодня: ");
   Serial.println(dayStamp);
 
   firstLine1 = "Сегодня";
@@ -414,16 +477,22 @@ void getNTPtime() {
 String processor(const String& var) {
   Serial.println(var);
   if (var == "DATE") {
-    return "Date";
+    return dayStamp;
   }
   if (var == "TIME") {
-	return "Time";
+	return timeStamp;
   }
   if (var == "TEMP") {
-	  return "Temp";
+	  return curTemperature;
   }
   if (var == "HUM") {
-	  return "Hum";
+	  return curHumidity;
+  }
+  if (var == "IPADDR") {
+    return WiFi.localIP().toString();
+  }
+  if (var == "UPDATEINTERVAL") {
+    return "60";
   }
   return String();
 }
@@ -431,9 +500,7 @@ String processor(const String& var) {
 // Функция создания нового файла с настройками при первом запуске
 void makeIni() {
   String iniFile;
-  iniFile = "[wifi]\nwifi_ssid=" + wifi_ssid + "\n";
-  iniFile += "wifi_pass=" + wifi_pass + "\n";
-  iniFile += "[general]\n";
+  iniFile = "[general]\n";
   iniFile += "delayLoading=1000\n";
   iniFile += "updateInterval=" + String(updateInterval) + "\n";
   iniFile += "timeOffset=" + String(timeOffset) + "\n";
@@ -448,6 +515,20 @@ void makeIni() {
     Serial.println("File settings.ini: ok");
   }
   file.close();
+
+  iniFile = "[wifi]\nwifi_ssid=" + wifi_ssid + "\n";
+  iniFile += "wifi_pass=" + wifi_pass + "\n";
+
+  file = SPIFFS.open("/wifi.ini", FILE_WRITE);
+  if (!file) {
+    Serial.println("Cant open file wifi.ini for write");
+  }
+  else {
+    file.print(iniFile);
+    Serial.println("File wifi.ini: ok");
+  }
+  file.close();
+  ESP.restart();
 }
 
 
@@ -538,7 +619,7 @@ void setup() {
 
   // Инициализация последовательного соединение и выбор скорость передачи данных в бит/c
   Serial.begin(115200);
-  Serial.println("Bootnig...");
+  Serial.println("Загрузка...");
   spiffs_begin();
   //  get_index();
 
@@ -567,7 +648,7 @@ void setup() {
   lcd_change(1);
   delay(loadingDelay);
   firstLine1 = "Темп: " + String(bme.readTemperature(), 2) + " C";
-  secondLine1 = "Влаж:  " + String(bme.readHumidity(), 2) + " %";
+  secondLine1 = "Влаж: " + String(bme.readHumidity(), 2) + " %";
   lcd_change(0);
 
   // установка таймера
@@ -578,10 +659,10 @@ void setup() {
 
   // запуск ElegantOTA и сервера
   AsyncElegantOTA.begin(&server);
-  server.begin();
+  // server.begin();
   // стартовая страница
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-	request->send(SPIFFS, "/index.html", String());
+	request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
   // страница с показаниями
@@ -603,44 +684,26 @@ void setup() {
       Serial.println("Param " + p->name() + ": " + p->value());
 
       if (p->name() == "ssid") {
-        wifi_ssid = p->value();
+        if (p->value() != "") wifi_ssid = p->value();
       }
       if (p->name() == "pass") {
-        wifi_pass = p->value();
+        if (p->value() != "") wifi_pass = p->value();
       }
       if (p->name() == "updateInterval") {
-        updateInterval = (p->value()).toInt();
+        if (p->value() != "") updateInterval = (p->value()).toInt();
       }
       if (p->name() == "remoteServer") {
-        remoteServer = p->value();
+        if (p->value() != "") remoteServer = p->value();
       }
       if (p->name() == "timeOffset") {
-        timeOffset = (p->value()).toInt();
+        if (p->value() != "") timeOffset = (p->value()).toInt();
       }
     }
     request->send(200, "text/plain", "Data saved. Reboot...");
     makeIni();
   });
-
-  // если надо сбросить настройки прибора
-  server.on("/reset", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/reset.html", String());
-  });
-  // сброс устройства по запросу get
-  server.on("/factoryreset", HTTP_GET, [](AsyncWebServerRequest * request) {
-      AsyncWebParameter* p = request->getParam(0);
-      if (p->name() == "yes") {
-        if (SPIFFS.remove("/settings.ini")) {
-          Serial.println("File settings.ini succesfuly deleted");
-        }
-        else{
-          Serial.println("File settings.ini not found. Nothing to delete");
-        }
-		ESP.restart();
-      }
-
-    request->send(200, "text/plain", "Reseting...");
-  });
+  curTemperature = String(bme.readTemperature(), 2);
+  curHumidity = String(bme.readHumidity(), 2);
 }
 
 
@@ -653,7 +716,7 @@ void loop() {
   {
     lcd_change(md);
     prev_md = md;
-    Serial.println("Prev_md changed");
+    Serial.println("Режим отображения изменился");
   }
 
   if (firstTimer.isReady()) {
@@ -664,7 +727,7 @@ void loop() {
     if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "updateTime\n");
     if (WiFi.status() == WL_CONNECTED) {
       while (!timeClient.update()) {
-        Serial.println("Time is updated");
+        Serial.println("Время обновлено");
         if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "time Updated\n");
         timeClient.forceUpdate();
         if (WiFi.status() != WL_CONNECTED){
@@ -690,8 +753,8 @@ void loop() {
     // если таймер сработал, то опрашиваем датчик и выводим на экран
     curTemperature = String(bme.readTemperature(), 2);
     curHumidity = String(bme.readHumidity(), 2);
-    firstLine1 = "Temp: " + curTemperature + " C";
-    secondLine1 = "Hum:  " + curHumidity + " %";
+    firstLine1 = "Темп: " + curTemperature + " C";
+    secondLine1 = "Влаж: " + curHumidity + " %";
     Serial.println(dayStamp + " " + timeStamp + " " + firstLine1 + " " + secondLine1);
     //записываем данные в файл на сд-карту
     if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "write data to file\n");
@@ -701,8 +764,29 @@ void loop() {
     // отправляем страницу на сервер
     if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "webserver update page\n");
 
+    // если надо сбросить настройки прибора
+    server.on("/reset", HTTP_GET, [](AsyncWebServerRequest * request) {
+      request->send(SPIFFS, "/reset.html", String());
+    });
+    // сброс устройства по запросу get
+    server.on("/factoryreset", HTTP_GET, [](AsyncWebServerRequest * request) {
+        AsyncWebParameter* p = request->getParam(0);
+        if (p->name() == "yes") {
+          if (SPIFFS.remove("/settings.ini")) {
+            Serial.println("File settings.ini succesfuly deleted");
+          }
+          else{
+            Serial.println("File settings.ini not found. Nothing to delete");
+          }
+  		ESP.restart();
+        }
+
+      request->send(200, "text/plain", "Reseting...");
+    });
+
+    // стартовая страница
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/html"); // SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
+    request->send(SPIFFS, "/index.html", String(), false, processor); // SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
     });
 
 //    server.send(200, "text/html", SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
