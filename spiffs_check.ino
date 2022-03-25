@@ -248,13 +248,49 @@ void printErrorMessage(uint8_t e, bool eol = true)
     Serial.println();
 }
 
+void readIniWifi() {
+  SPIFFSIniFile ini_w("/wifi.ini");
+  if (!ini_w.open()) {
+    Serial.println("Wifi.ini file does not exist");
+  }
+  if (!ini_w.validate(buffer, bufferLen)) {
+    Serial.print("ini file ");
+    Serial.print(ini_w.getFilename());
+    Serial.print(" not valid: ");
+    printErrorMessage(ini_w.getError());
+    // Cannot do anything else
+    while (1)
+      ;
+  }
+  Serial.println("Getting settings from wifi.ini");
+  // Wifi SSID
+  if (ini_w.getValue("wifi", "wifi_ssid", buffer, bufferLen)) {
+    Serial.print("section 'wifi' has an entry 'wifi_ssid' with value ");
+    Serial.println(buffer);
+    wifi_ssid = buffer;
+  }
+  else {
+    Serial.print("Could not read 'wifi_ssid' from section 'wifi', error was ");
+    printErrorMessage(ini_w.getError());
+  }
+	// WIFI Password
+  if (ini_w.getValue("wifi", "wifi_pass", buffer, bufferLen)) {
+    Serial.print("section 'wifi' has an entry 'wifi_pass' with value ");
+    Serial.println(buffer);
+    wifi_pass = buffer;
+  }
+  else {
+    Serial.print("Could not read 'wifi_pass' from section 'wifi', error was ");
+    printErrorMessage(ini_w.getError());
+  }
+}
+
+
 // чтение настроек из файла
 void readIni() {
   SPIFFSIniFile ini("/settings.ini");
   if (!ini.open()) {
-    Serial.print("Ini file ");
-    Serial.print("/settings.ini");
-    Serial.println(" does not exist");
+    Serial.print("Settings.ini does not exist");
     // Cannot do anything else
     while (1)
       ;
@@ -272,26 +308,7 @@ void readIni() {
   }
 
   Serial.println("Getting settings from settings.ini");
-  // Wifi SSID
-  if (ini.getValue("wifi", "wifi_ssid", buffer, bufferLen)) {
-    Serial.print("section 'wifi' has an entry 'wifi_ssid' with value ");
-    Serial.println(buffer);
-    wifi_ssid = buffer;
-  }
-  else {
-    Serial.print("Could not read 'wifi_ssid' from section 'wifi', error was ");
-    printErrorMessage(ini.getError());
-  }
-	// WIFI Password
-  if (ini.getValue("wifi", "wifi_pass", buffer, bufferLen)) {
-    Serial.print("section 'wifi' has an entry 'wifi_pass' with value ");
-    Serial.println(buffer);
-    wifi_pass = buffer;
-  }
-  else {
-    Serial.print("Could not read 'wifi_pass' from section 'wifi', error was ");
-    printErrorMessage(ini.getError());
-  }
+
   // Смещение времени
   if (ini.getValue("general", "timeOffset", buffer, bufferLen)) {
     Serial.print("section 'general' has an entry 'timeOffset' with value ");
@@ -332,7 +349,7 @@ void initWifi(bool firstSt) {
   connect_count = 0;
   Serial.println("Starting wifi...");
   if (firstSt) {
-    Serial.println("Starting acces point mode");
+    Serial.println("Starting access point mode");
     WiFi.softAP("Thermo", "12345678");
     IPAddress IP = WiFi.softAPIP();
     Serial.println(IP);
