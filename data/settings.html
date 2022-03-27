@@ -12,19 +12,20 @@
   </style>
  </head>
  <body>
-<p>Укажите базовые настройки</p>
+<p>Текущие настройки устройства</p>
   <form action="send">
   <label for="GET-SSID">SSID:</label>
-  <input id="GET-SSID" type="text" name="ssid"><br/>
+  <input id="GET-SSID" type="text" name="ssid" value="%SSID%"><br/>
   <label for="GET-pass">Password:</label>
-  <input id="GET-pass" type="text" name="pass"><br/>
+  <input id="GET-pass" type="text" name="pass" value="%PASS%"><br/>
   <label for="GET-updInt">Интервал обновления</label>
-  <input id="GET-updInt"  type="text" name="updateInterval"><br/>
+  <input id="GET-updInt"  type="text" name="updateInterval" value="%UPDATEINTERVAL%"><br/>
   <label for="GET-timeoffset">Смещение времени:</label>
-  <input id="GET-timeoffset" type="text" name="timeOffset" placeholder="1 час - 3600"><br/>
+  <input id="GET-timeoffset" type="text" name="timeOffset" value="%TIMEOFFSET%"><br/>
   <label for="GET-remServer">Удаленный сервер</label>
-  <input id="GET-remServer" type="text" name="remoteServer"></br>
+  <input id="GET-remServer" type="text" name="remoteServer" value="%REMSERVER%"></br>
   <input type="submit" value="Сохранить">
 </form>
+После сохранения устройство перезагрузится для применения настроек
  </body>
 </html>

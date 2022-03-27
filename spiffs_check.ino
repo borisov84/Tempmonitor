@@ -468,7 +468,7 @@ void getNTPtime() {
   Serial.println(dayStamp);
 
   firstLine1 = "Сегодня";
-  secondLine1 = formattedDate;
+  secondLine1 = dayStamp;
   lcd_change(0);
 }
 
@@ -492,7 +492,19 @@ String processor(const String& var) {
     return WiFi.localIP().toString();
   }
   if (var == "UPDATEINTERVAL") {
-    return "60";
+    return String(updateInterval);
+  }
+  if (var == "SSID") {
+    return wifi_ssid;
+  }
+  if (var == "PASS") {
+    return wifi_pass;
+  }
+  if (var == "TIMEOFFSET") {
+    return String(timeOffset);
+  }
+  if (var == "REMSERVER") {
+    return remoteServer;
   }
   return String();
 }
@@ -652,7 +664,7 @@ void setup() {
   lcd_change(0);
 
   // установка таймера
-  firstTimer.setInterval(delayTime);
+  firstTimer.setInterval(updateInterval*1000);
 
   // запуск FTP сервера
   ftpSrv.begin("esp32", "esp32");
@@ -671,8 +683,8 @@ void setup() {
   });
 
   // страница базовых настроек
-  server.on("/new", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/new.html", String());
+  server.on("/settings", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/settings.html", String(), false, processor);
   });
   // при первой настройке вводятся настройки wifi сети и др параметров
   server.on("/send", HTTP_GET, [](AsyncWebServerRequest * request) {
