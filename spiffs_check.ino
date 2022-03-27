@@ -664,7 +664,7 @@ void setup() {
   lcd_change(0);
 
   // установка таймера
-  firstTimer.setInterval(updateInterval*1000);
+  firstTimer.setInterval(updateInterval*60000);
 
   // запуск FTP сервера
   ftpSrv.begin("esp32", "esp32");
