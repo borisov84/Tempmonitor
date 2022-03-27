@@ -694,7 +694,7 @@ void getTemp(){
   if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Send data to remote server\n");
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Wifi connected. Sending data...");
-    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Wifi connected. Send data\n");
+    if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Есть подключение к Wifi . Отправляем данные\n");
     sendData(dayStamp, timeStamp, curTemperature, curHumidity);
     if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "Send data ok\n");
   }
