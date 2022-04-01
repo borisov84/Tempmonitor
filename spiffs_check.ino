@@ -88,7 +88,7 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
 // создание объекта lcd
-LCD_1602_RUS lcd(0x3F, 16, 2);
+LCD_1602_RUS lcd(0x27, 16, 2);
 
 // функция для изменения режимов отображения экрана (через прерывания)
 void IRAM_ATTR chTxt()
