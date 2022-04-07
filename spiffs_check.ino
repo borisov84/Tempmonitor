@@ -631,6 +631,7 @@ void bmeinit() {
 }
 
 void getTemp(){
+  // логгирование событий, можно удалить
   if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "timerReady\n");
   if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "updateTime\n");
 
@@ -650,6 +651,11 @@ void getTemp(){
   // если таймер сработал, то опрашиваем датчик и выводим на экран
   curTemperature = String(bme.readTemperature(), 2);
   curHumidity = String(bme.readHumidity(), 2);
+  if (curTemperature == 'nan' & curHumidity == 'nan')
+    {
+      curTemperature = 0;
+      curHumidity = 0;
+    }
   firstLine1 = "Темп: " + curTemperature + " C";
   secondLine1 = "Влаж: " + curHumidity + " %";
   Serial.println(dayStamp + " " + timeStamp + " " + firstLine1 + " " + secondLine1);
@@ -799,8 +805,8 @@ void setup() {
     request->send(200, "text/plain", "Данные сохранены. Перезагрузка...");
     makeIni();
   });
-  curTemperature = String(bme.readTemperature(), 2);
-  curHumidity = String(bme.readHumidity(), 2);
+  //curTemperature = String(bme.readTemperature(), 2);
+  //curHumidity = String(bme.readHumidity(), 2);
   getTemp();
 }
 
