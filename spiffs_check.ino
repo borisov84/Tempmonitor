@@ -503,6 +503,9 @@ String processor(const String& var) {
   if (var == "UPDATEINTERVAL") {
     return String(updateInterval/60000);
   }
+  if (var == "REFRESH") {
+    return String(updateInterval/1000);
+  }
   if (var == "SSID") {
     return wifi_ssid;
   }

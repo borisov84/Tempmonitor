@@ -1,0 +1,5 @@
+SET  @num := 0;
+
+UPDATE Data SET ID = @num := (@num+1);
+
+ALTER TABLE Data AUTO_INCREMENT =1;
