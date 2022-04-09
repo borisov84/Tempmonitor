@@ -651,10 +651,10 @@ void getTemp(){
   // если таймер сработал, то опрашиваем датчик и выводим на экран
   curTemperature = String(bme.readTemperature(), 2);
   curHumidity = String(bme.readHumidity(), 2);
-  if (curTemperature == 'nan' & curHumidity == 'nan')
+  if (curTemperature == "nan" & curHumidity == "nan")
     {
-      curTemperature = 0;
-      curHumidity = 0;
+      curTemperature = '0';
+      curHumidity = '0';
     }
   firstLine1 = "Темп: " + curTemperature + " C";
   secondLine1 = "Влаж: " + curHumidity + " %";
