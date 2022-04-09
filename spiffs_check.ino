@@ -333,6 +333,7 @@ void readIni() {
     Serial.print("Секция 'general' имеет запись 'timeOffset' со значением ");
     Serial.println(buffer);
     timeOffset = atoi(buffer);
+    timeOffset *= 3600;
   }
   else {
     Serial.print("Не могу прочитать 'timeOffset' из секции 'general', ошибка ");
@@ -343,6 +344,7 @@ void readIni() {
     Serial.print("Секция 'general' имеет запись 'updateInterval' со значением ");
     Serial.println(buffer);
     updateInterval = atoi(buffer);
+    updateInterval *= 60000;
   }
   else {
     Serial.print("Не могу прочитать 'updateInterval' из секции 'general', ошибка ");
@@ -411,7 +413,7 @@ void initWifi(bool firstSt) {
           if (p->value() != "") timeOffset = (p->value()).toInt();
         }
       }
-      request->send(200, "text/plain", "Данные сохранены. Перезагрузка для применения...");
+      request->send(200, "text/html; charset=utf-8", "Данные сохранены. Перезагрузка для применения...");
       makeIni();
     });
   }
@@ -456,6 +458,7 @@ void getNTPtime() {
   timeClient.begin();
   Serial.println("Установка времени");
   // Установка часового пояса (смещения от GMT): 1 час - 3600, 18000 - Екатеринбург +5
+  Serial.println(timeOffset);
   timeClient.setTimeOffset(timeOffset);
 
   // обновление времени с NTP-сервера
@@ -498,7 +501,7 @@ String processor(const String& var) {
     return WiFi.localIP().toString();
   }
   if (var == "UPDATEINTERVAL") {
-    return String(updateInterval*60000);
+    return String(updateInterval/60000);
   }
   if (var == "SSID") {
     return wifi_ssid;
@@ -507,7 +510,7 @@ String processor(const String& var) {
     return wifi_pass;
   }
   if (var == "TIMEOFFSET") {
-    return String(timeOffset);
+    return String(timeOffset/3600);
   }
   if (var == "REMSERVER") {
     return remoteServer;
@@ -523,7 +526,7 @@ void makeIni() {
   iniFile += "updateInterval=" + String(updateInterval) + "\n";
   iniFile += "timeOffset=" + String(timeOffset) + "\n";
   iniFile += "[remote]\nserver=" + remoteServer;
-
+  Serial.println(iniFile);
   File file = SPIFFS.open("/settings.ini", FILE_WRITE);
   if (!file) {
     Serial.println("Не удается открыть файл для записи");
@@ -589,12 +592,12 @@ void writeFile(fs::FS &fs, const char * path, String message) // const char * me
 void sendData(String date, String tim, String temp, String hum) {
   HTTPClient http;
   WiFiClient client;
-  http.begin(client, "http://" + remoteServer + "/getdata.php");
+  http.begin(client, remoteServer + "/getdata.php");
   // добавляем заголовок к запросу
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   // Данные для отправки запроса HTTP POST на сервер
   String httpRequestData = "Date=" + date + "&Time=" + tim + "&Temper=" + temp + "&Hum=" + hum;
-  Serial.println("http://" + remoteServer + "/getdata.php" + httpRequestData);
+  Serial.println(remoteServer + "/getdata.php" + httpRequestData);
   // отправка запроса
   int httpResponseCode = http.POST(httpRequestData);
   Serial.print("HTTP Response code: ");
@@ -753,7 +756,7 @@ void setup() {
 
   // установка таймеров
   // интервал между измерениями
-  updateDatatimer.setInterval(updateInterval*60000);
+  updateDatatimer.setInterval(updateInterval);
   // интервал между обновлением данных (раз в сутки)
   updateTimeTimer.setInterval(86400000);
 
@@ -766,11 +769,6 @@ void setup() {
   // стартовая страница
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
 	request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
-  // страница с показаниями
-  server.on("/mes", HTTP_GET, [] (AsyncWebServerRequest * request){
-	request->send(SPIFFS, "/mes.html",String(), false, processor);
   });
 
   // страница базовых настроек
@@ -802,7 +800,7 @@ void setup() {
         if (p->value() != "") timeOffset = (p->value()).toInt();
       }
     }
-    request->send(200, "text/plain", "Данные сохранены. Перезагрузка...");
+    request->send(200, "text/plain; charset=utf-8", "Данные сохранены. Перезагрузка...");
     makeIni();
   });
   //curTemperature = String(bme.readTemperature(), 2);
