@@ -806,6 +806,11 @@ void setup() {
     request->send(200, "text/plain; charset=utf-8", "Данные сохранены. Перезагрузка...");
     makeIni();
   });
+
+  server.on("/reload", HTTP_GET, [](AsyncWebServerRequest * request){
+    getTemp();
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
   //curTemperature = String(bme.readTemperature(), 2);
   //curHumidity = String(bme.readHumidity(), 2);
   getTemp();
