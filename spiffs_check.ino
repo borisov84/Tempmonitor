@@ -23,13 +23,10 @@
 #include <SimpleTimer.h>
 
 //для LCD экрана
-//#include <LiquidCrystal_I2C.h>
 #include <LCD_1602_RUS.h> // русские буквы
 
-#define Btn_GPIO 34
-#define SEALEVELPRESSURE_HPA (1013.25)
-#define loadingDelay 1000 //интервал между инициализацией компонентов при загрузке, в мс
-
+#define Btn_GPIO 34 // вывод куда подключается кнопка
+#define loadingDelay 1000 // интервал между инициализацией компонентов при загрузке, в мс
 
 bool firstStart = false; // если устройство не настроено
 bool sdExist = true; // есть ли Sd карта
@@ -127,6 +124,23 @@ void lcd_change(int mod) {
   }
 }
 
+// инициализация SPIFFS
+void spiffs_begin() {
+  if (!SPIFFS.begin(true)) {
+    Serial.println("Ошибка при монтировании SPIFFS");
+	firstLine1 = "Вниманин...";
+    secondLine1 = "SPIFFS: Error!";
+	lcd_change(0);
+    //  "При монтировании SPIFFS возникла ошибка"
+    return;
+  }
+  else {
+	firstLine1 = "Загрузка...";
+    secondLine1 = "SPIFFS: Ok";
+	lcd_change(0);
+  }
+}
+
 // инициализация MicroSD модуля и карты памяти
 void initMcSD() {
   Serial.println("Инициализация MicroSD модуля...");
@@ -155,14 +169,7 @@ void initMcSD() {
 }
 
 
-// инициализация SPIFFS
-void spiffs_begin() {
-  if (!SPIFFS.begin(true)) {
-    Serial.println("Ошибка при монтировании SPIFFS");
-    //  "При монтировании SPIFFS возникла ошибка"
-    return;
-  }
-}
+
 
 // удаление файла настроек (сброс на заводские настройки)
 void factReset(String mod) {
@@ -728,11 +735,13 @@ void setup() {
   // Инициализация последовательного соединение и выбор скорость передачи данных в бит/c
   Serial.begin(115200);
   Serial.println("Загрузка...");
-  spiffs_begin();
-  //  get_index();
 
   // инициализация LCD-экрана
   lcdinit();
+  delay(loadingDelay);
+
+  // инициализация spi-файловой системы
+  spiffs_begin();
   delay(loadingDelay);
 
   // инициализация датчика BME280
