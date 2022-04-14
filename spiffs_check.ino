@@ -40,6 +40,7 @@ String remoteServer;
 int updateInterval;
 String curTemperature;
 String curHumidity;
+bool refresh = false;
 
 //набор переменных для смены режима
 String firstLine1;
@@ -636,6 +637,7 @@ void bmeinit() {
   }
 }
 
+// основная фукнция измерения параметров
 void getTemp(){
   // логгирование событий, можно удалить
   if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "timerReady\n");
@@ -808,23 +810,27 @@ void setup() {
   });
 
   server.on("/reload", HTTP_GET, [](AsyncWebServerRequest * request){
-    getTemp();
+    Serial.println("Manual refresh");
+    refresh = true;
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
   server.on("/restart", HTTP_GET, [](AsyncWebServerRequest * request){
+    request->send(200, "text/plain; charset=utf-8", "Перезагрузка...");
     ESP.restart();
   });
-  //curTemperature = String(bme.readTemperature(), 2);
-  //curHumidity = String(bme.readHumidity(), 2);
   getTemp();
 }
-
 
 
 void loop() {
   // Обработка FTP
 	ftpSrv.handleFTP();
+  // обработка ручного обновления
+  if (refresh == true) {
+    getTemp();
+    refresh = false;
+  }
 
 	if (prev_md != md) // если нажималась кнопка и режим md сменился, то меняем текст на экране
   {
