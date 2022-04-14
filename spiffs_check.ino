@@ -812,7 +812,7 @@ void setup() {
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
-  server.on("/restart", HTTP_GET, []AsyncWebServerRequest * request){
+  server.on("/restart", HTTP_GET, [](AsyncWebServerRequest * request){
     ESP.restart();
   });
   //curTemperature = String(bme.readTemperature(), 2);
