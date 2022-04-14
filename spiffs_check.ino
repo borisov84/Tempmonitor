@@ -811,6 +811,10 @@ void setup() {
     getTemp();
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
+
+  server.on("/restart", HTTP_GET, []AsyncWebServerRequest * request){
+    ESP.restart();
+  });
   //curTemperature = String(bme.readTemperature(), 2);
   //curHumidity = String(bme.readHumidity(), 2);
   getTemp();
