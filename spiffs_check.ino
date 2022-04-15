@@ -124,6 +124,15 @@ void lcd_change(int mod) {
   }
 }
 
+
+// инициализация экрана
+void lcdinit() {
+  lcd.init();
+  lcd.backlight();
+  firstLine1 = "Загрузка...";
+  lcd_change(0);
+}
+
 // инициализация SPIFFS
 void spiffs_begin() {
   if (!SPIFFS.begin(true)) {
@@ -140,6 +149,27 @@ void spiffs_begin() {
 	lcd_change(0);
   }
 }
+
+
+
+// инициализация датчика
+void bmeinit() {
+  Serial.println("Init BME280...");
+  bool status;
+  status = bme.begin(0x76);
+  if (!status) {
+    Serial.println("Не удается найти датчик BME280, проверьте подключение!");
+    secondLine1 = "BME280 не найден";
+    lcd_change(0);
+    while (1);
+  }
+  else {
+    Serial.println("BME280 найден!");
+    secondLine1 = "BME280: Ok";
+    lcd_change(0);
+  }
+}
+
 
 // инициализация MicroSD модуля и карты памяти
 void initMcSD() {
@@ -169,57 +199,6 @@ void initMcSD() {
 }
 
 
-
-
-// удаление файла настроек (сброс на заводские настройки)
-void factReset(String mod) {
-  if (mod == "all"){
-    if (SPIFFS.remove("/settings.ini")) {
-      Serial.println("Файл settings.ini успешно удален");
-      //  "Файл успешно удален"
-    }
-    else {
-      Serial.print("Ошибка удаления файла!");
-      //  "Не удалось удалить файл!"
-    }
-    if (SPIFFS.remove("/wifi.ini")) {
-      Serial.println("Файл wifi.ini успешно удален");
-      //  "Файл успешно удален"
-    }
-    else {
-      Serial.print("Ошибка удаления файла!");
-      //  "Не удалось удалить файл!"
-    }
-  }
-  if (mod == "wifi") {
-    if (SPIFFS.remove("/wifi.ini")) {
-      Serial.println("Файл wifi.ini успешно удален");
-      //  "Файл успешно удален"
-    }
-    else {
-      Serial.print("Ошибка удаления файла!");
-      //  "Не удалось удалить файл!"
-    }
-  }
-}
-
-// чтение index.html TODO: потом удалить
-void get_index() {
-  File file = SPIFFS.open("/index.html");
-  if (!file) {
-    Serial.println("Ошибка открытия файла для чтения");
-    //  "Не удалось открыть файл для чтения"
-    return;
-  }
-
-  Serial.println("Содержимое файла:");
-  //  "Содержимое файла:"
-  while (file.available()) {
-    Serial.write(file.read());
-  }
-  file.close();
-}
-
 // проверка - есть ли файл settings.ini
 bool check_settings() {
   Serial.println("Проверка файла settings.ini...");
@@ -236,140 +215,6 @@ bool check_settings() {
   return firstStart;
 }
 
-// вывод сообщений об ошибке
-void printErrorMessage(uint8_t e, bool eol = true)
-{
-  switch (e) {
-    case SPIFFSIniFile::errorNoError:
-      Serial.print("no error");
-      break;
-    case SPIFFSIniFile::errorFileNotFound:
-      Serial.print("file not found");
-      break;
-    case SPIFFSIniFile::errorFileNotOpen:
-      Serial.print("file not open");
-      break;
-    case SPIFFSIniFile::errorBufferTooSmall:
-      Serial.print("buffer too small");
-      break;
-    case SPIFFSIniFile::errorSeekError:
-      Serial.print("seek error");
-      break;
-    case SPIFFSIniFile::errorSectionNotFound:
-      Serial.print("Секция not found");
-      break;
-    case SPIFFSIniFile::errorKeyNotFound:
-      Serial.print("key not found");
-      break;
-    case SPIFFSIniFile::errorEndOfFile:
-      Serial.print("end of file");
-      break;
-    case SPIFFSIniFile::errorUnknownError:
-      Serial.print("unknown error");
-      break;
-    default:
-      Serial.print("unknown error value");
-      break;
-  }
-  if (eol)
-    Serial.println();
-}
-
-void readIniWifi() {
-  SPIFFSIniFile ini_w("/wifi.ini");
-  if (!ini_w.open()) {
-    Serial.println("Wifi.ini не существует");
-  }
-  if (!ini_w.validate(buffer, bufferLen)) {
-    Serial.print("ini-файл ");
-    Serial.print(ini_w.getFilename());
-    Serial.print(" неправильный: ");
-    printErrorMessage(ini_w.getError());
-    // Cannot do anything else
-    while (1)
-      ;
-  }
-  Serial.println("Получение настроек из wifi.ini");
-  // Wifi SSID
-  if (ini_w.getValue("wifi", "wifi_ssid", buffer, bufferLen)) {
-    Serial.print("Секция 'wifi' имеет запись 'wifi_ssid' со значенем ");
-    Serial.println(buffer);
-    wifi_ssid = buffer;
-  }
-  else {
-    Serial.print("Не могу прочитать 'wifi_ssid' из секции 'wifi', ошибка ");
-    printErrorMessage(ini_w.getError());
-  }
-	// WIFI Password
-  if (ini_w.getValue("wifi", "wifi_pass", buffer, bufferLen)) {
-    Serial.print("Секция 'wifi' имеет запись 'wifi_pass' со значением ");
-    Serial.println(buffer);
-    wifi_pass = buffer;
-  }
-  else {
-    Serial.print("Не могу прочитать 'wifi_pass' из секции 'wifi', ошибка ");
-    printErrorMessage(ini_w.getError());
-  }
-}
-
-
-// чтение настроек из файла
-void readIni() {
-  SPIFFSIniFile ini("/settings.ini");
-  if (!ini.open()) {
-    Serial.print("Settings.ini не существует");
-    // Cannot do anything else
-    while (1)
-      ;
-  }
-  // Check the file is valid. This can be used to warn if any lines
-  // are longer than the buffer.
-  if (!ini.validate(buffer, bufferLen)) {
-    Serial.print("ini-файл ");
-    Serial.print(ini.getFilename());
-    Serial.print(" неправильный: ");
-    printErrorMessage(ini.getError());
-    // Cannot do anything else
-    while (1)
-      ;
-  }
-
-  Serial.println("Получение настроек из settings.ini");
-
-  // Смещение времени
-  if (ini.getValue("general", "timeOffset", buffer, bufferLen)) {
-    Serial.print("Секция 'general' имеет запись 'timeOffset' со значением ");
-    Serial.println(buffer);
-    timeOffset = atoi(buffer);
-    timeOffset *= 3600;
-  }
-  else {
-    Serial.print("Не могу прочитать 'timeOffset' из секции 'general', ошибка ");
-    printErrorMessage(ini.getError());
-  }
-  // интервал измерения
-  if (ini.getValue("general", "updateInterval", buffer, bufferLen)) {
-    Serial.print("Секция 'general' имеет запись 'updateInterval' со значением ");
-    Serial.println(buffer);
-    updateInterval = atoi(buffer);
-    updateInterval *= 60000;
-  }
-  else {
-    Serial.print("Не могу прочитать 'updateInterval' из секции 'general', ошибка ");
-    printErrorMessage(ini.getError());
-  }
-  // удаленный сервер для передачи данных
-  if (ini.getValue("remote", "server", buffer, bufferLen)) {
-    Serial.print("Секция 'remote' имеет запись 'server' со значением ");
-    Serial.println(buffer);
-    remoteServer = buffer;
-  }
-  else {
-    Serial.print("Не могу прочитать 'remoteServer' из секции 'remote', ошибка ");
-    printErrorMessage(ini.getError());
-  }
-
-}
 
 // инициализация Wifi: если firstStart = true, то создаем точку доступа,
 // если false, то пробуем подключиться к сети Wifi
@@ -461,6 +306,230 @@ void initWifi(bool firstSt) {
   }
 }
 
+// Функция создания нового файла с настройками при первом запуске
+void makeIni() {
+  String iniFile;
+  iniFile = "[general]\n";
+  iniFile += "delayLoading=1000\n";
+  iniFile += "updateInterval=" + String(updateInterval) + "\n";
+  iniFile += "timeOffset=" + String(timeOffset) + "\n";
+  iniFile += "[remote]\nserver=" + remoteServer;
+  Serial.println(iniFile);
+  File file = SPIFFS.open("/settings.ini", FILE_WRITE);
+  if (!file) {
+    Serial.println("Не удается открыть файл для записи");
+  }
+  else {
+    file.print(iniFile);
+    Serial.println("Файл settings.ini: ok");
+  }
+  file.close();
+
+  iniFile = "[wifi]\nwifi_ssid=" + wifi_ssid + "\n";
+  iniFile += "wifi_pass=" + wifi_pass + "\n";
+
+  file = SPIFFS.open("/wifi.ini", FILE_WRITE);
+  if (!file) {
+    Serial.println("Не удается открыть файл wifi.ini для записи");
+  }
+  else {
+    file.print(iniFile);
+    Serial.println("Файл wifi.ini: ok");
+  }
+  file.close();
+  ESP.restart();
+}
+
+void readIniWifi() {
+  SPIFFSIniFile ini_w("/wifi.ini");
+  if (!ini_w.open()) {
+    Serial.println("Wifi.ini не существует");
+  }
+  if (!ini_w.validate(buffer, bufferLen)) {
+    Serial.print("ini-файл ");
+    Serial.print(ini_w.getFilename());
+    Serial.print(" неправильный: ");
+    printErrorMessage(ini_w.getError());
+    // Cannot do anything else
+    while (1)
+      ;
+  }
+  Serial.println("Получение настроек из wifi.ini");
+  // Wifi SSID
+  if (ini_w.getValue("wifi", "wifi_ssid", buffer, bufferLen)) {
+    Serial.print("Секция 'wifi' имеет запись 'wifi_ssid' со значенем ");
+    Serial.println(buffer);
+    wifi_ssid = buffer;
+  }
+  else {
+    Serial.print("Не могу прочитать 'wifi_ssid' из секции 'wifi', ошибка ");
+    printErrorMessage(ini_w.getError());
+  }
+	// WIFI Password
+  if (ini_w.getValue("wifi", "wifi_pass", buffer, bufferLen)) {
+    Serial.print("Секция 'wifi' имеет запись 'wifi_pass' со значением ");
+    Serial.println(buffer);
+    wifi_pass = buffer;
+  }
+  else {
+    Serial.print("Не могу прочитать 'wifi_pass' из секции 'wifi', ошибка ");
+    printErrorMessage(ini_w.getError());
+  }
+}
+
+
+// чтение настроек из файла
+void readIni() {
+  SPIFFSIniFile ini("/settings.ini");
+  if (!ini.open()) {
+    Serial.print("Settings.ini не существует");
+    factReset("all");
+  }
+  // Check the file is valid. This can be used to warn if any lines
+  // are longer than the buffer.
+  if (!ini.validate(buffer, bufferLen)) {
+    Serial.print("ini-файл ");
+    Serial.print(ini.getFilename());
+    Serial.print(" неправильный: ");
+    printErrorMessage(ini.getError());
+    factReset("all");
+  }
+
+  Serial.println("Получение настроек из settings.ini");
+
+  // Смещение времени
+  if (ini.getValue("general", "timeOffset", buffer, bufferLen)) {
+    Serial.print("Секция 'general' имеет запись 'timeOffset' со значением ");
+    Serial.println(buffer);
+    timeOffset = atoi(buffer);
+    timeOffset *= 3600;
+  }
+  else {
+    Serial.print("Не могу прочитать 'timeOffset' из секции 'general', ошибка ");
+    printErrorMessage(ini.getError());
+  }
+  // интервал измерения
+  if (ini.getValue("general", "updateInterval", buffer, bufferLen)) {
+    Serial.print("Секция 'general' имеет запись 'updateInterval' со значением ");
+    Serial.println(buffer);
+    updateInterval = atoi(buffer);
+    updateInterval *= 60000;
+  }
+  else {
+    Serial.print("Не могу прочитать 'updateInterval' из секции 'general', ошибка ");
+    printErrorMessage(ini.getError());
+  }
+  // удаленный сервер для передачи данных
+  if (ini.getValue("remote", "server", buffer, bufferLen)) {
+    Serial.print("Секция 'remote' имеет запись 'server' со значением ");
+    Serial.println(buffer);
+    remoteServer = buffer;
+  }
+  else {
+    Serial.print("Не могу прочитать 'remoteServer' из секции 'remote', ошибка ");
+    printErrorMessage(ini.getError());
+  }
+
+}
+
+
+
+// удаление файла настроек (сброс на заводские настройки)
+void factReset(String mod) {
+  if (mod == "all"){
+    if (SPIFFS.remove("/settings.ini")) {
+      Serial.println("Файл settings.ini успешно удален");
+      //  "Файл успешно удален"
+    }
+    else {
+      Serial.print("Ошибка удаления файла!");
+      //  "Не удалось удалить файл!"
+    }
+    if (SPIFFS.remove("/wifi.ini")) {
+      Serial.println("Файл wifi.ini успешно удален");
+      //  "Файл успешно удален"
+    }
+    else {
+      Serial.print("Ошибка удаления файла!");
+      //  "Не удалось удалить файл!"
+    }
+  }
+  if (mod == "wifi") {
+    if (SPIFFS.remove("/wifi.ini")) {
+      Serial.println("Файл wifi.ini успешно удален");
+      //  "Файл успешно удален"
+    }
+    else {
+      Serial.print("Ошибка удаления файла!");
+      //  "Не удалось удалить файл!"
+    }
+  }
+}
+
+// вывод сообщений об ошибке
+void printErrorMessage(uint8_t e, bool eol = true)
+{
+  switch (e) {
+    case SPIFFSIniFile::errorNoError:
+      Serial.print("no error");
+      break;
+    case SPIFFSIniFile::errorFileNotFound:
+      Serial.print("file not found");
+      break;
+    case SPIFFSIniFile::errorFileNotOpen:
+      Serial.print("file not open");
+      break;
+    case SPIFFSIniFile::errorBufferTooSmall:
+      Serial.print("buffer too small");
+      break;
+    case SPIFFSIniFile::errorSeekError:
+      Serial.print("seek error");
+      break;
+    case SPIFFSIniFile::errorSectionNotFound:
+      Serial.print("Секция not found");
+      break;
+    case SPIFFSIniFile::errorKeyNotFound:
+      Serial.print("key not found");
+      break;
+    case SPIFFSIniFile::errorEndOfFile:
+      Serial.print("end of file");
+      break;
+    case SPIFFSIniFile::errorUnknownError:
+      Serial.print("unknown error");
+      break;
+    default:
+      Serial.print("unknown error value");
+      break;
+  }
+  if (eol)
+    Serial.println();
+}
+
+// чтение index.html TODO: потом удалить
+void get_index() {
+  File file = SPIFFS.open("/index.html");
+  if (!file) {
+    Serial.println("Ошибка открытия файла для чтения");
+    //  "Не удалось открыть файл для чтения"
+    return;
+  }
+
+  Serial.println("Содержимое файла:");
+  //  "Содержимое файла:"
+  while (file.available()) {
+    Serial.write(file.read());
+  }
+  file.close();
+}
+
+
+
+
+
+
+
+
+
 // функция обновления времени с NTP-сервера
 void getNTPtime() {
   timeClient.begin();
@@ -529,39 +598,6 @@ String processor(const String& var) {
   return String();
 }
 
-// Функция создания нового файла с настройками при первом запуске
-void makeIni() {
-  String iniFile;
-  iniFile = "[general]\n";
-  iniFile += "delayLoading=1000\n";
-  iniFile += "updateInterval=" + String(updateInterval) + "\n";
-  iniFile += "timeOffset=" + String(timeOffset) + "\n";
-  iniFile += "[remote]\nserver=" + remoteServer;
-  Serial.println(iniFile);
-  File file = SPIFFS.open("/settings.ini", FILE_WRITE);
-  if (!file) {
-    Serial.println("Не удается открыть файл для записи");
-  }
-  else {
-    file.print(iniFile);
-    Serial.println("Файл settings.ini: ok");
-  }
-  file.close();
-
-  iniFile = "[wifi]\nwifi_ssid=" + wifi_ssid + "\n";
-  iniFile += "wifi_pass=" + wifi_pass + "\n";
-
-  file = SPIFFS.open("/wifi.ini", FILE_WRITE);
-  if (!file) {
-    Serial.println("Не удается открыть файл wifi.ini для записи");
-  }
-  else {
-    file.print(iniFile);
-    Serial.println("Файл wifi.ini: ok");
-  }
-  file.close();
-  ESP.restart();
-}
 
 
 // запись данных в файл
@@ -618,31 +654,8 @@ void sendData(String date, String tim, String temp, String hum) {
   http.end();
 }
 
-// инициализация экрана
-void lcdinit() {
-  lcd.init();
-  lcd.backlight();
-  firstLine1 = "Загрузка...";
-  lcd_change(0);
-}
 
-// инициализация датчика
-void bmeinit() {
-  Serial.println("Init BME280...");
-  bool status;
-  status = bme.begin(0x76);
-  if (!status) {
-    Serial.println("Не удается найти датчик BME280, проверьте подключение!");
-    secondLine1 = "BME280 не найден";
-    lcd_change(0);
-    while (1);
-  }
-  else {
-    Serial.println("BME280 найден!");
-    secondLine1 = "BME280: Ok";
-    lcd_change(0);
-  }
-}
+
 
 // основная фукнция измерения параметров
 void getTemp(){
