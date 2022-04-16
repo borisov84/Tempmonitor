@@ -433,6 +433,33 @@ void readIni() {
 }
 
 
+// функция обновления времени с NTP-сервера
+void getNTPtime() {
+  timeClient.begin();
+  Serial.println("Установка времени");
+  // Установка часового пояса (смещения от GMT): 1 час - 3600, 18000 - Екатеринбург +5
+  Serial.println(timeOffset);
+  timeClient.setTimeOffset(timeOffset);
+
+  // обновление времени с NTP-сервера
+  while (!timeClient.update()) {
+    timeClient.forceUpdate();
+  }
+  // вывод даты и времени в формате YYYY-MM-DDTHH:mm:ssZ
+  formattedDate = timeClient.getFormattedDate();
+  Serial.println("Текущая дата: " + formattedDate);
+
+  // вывод даты и времени
+  int splitT = formattedDate.indexOf("T");
+  dayStamp = formattedDate.substring(0, splitT);
+  timeStamp = formattedDate.substring(splitT + 1, formattedDate.length() - 1); // время
+  Serial.print("Сегодня: ");
+  Serial.println(dayStamp);
+
+  firstLine1 = "Сегодня";
+  secondLine1 = dayStamp;
+  lcd_change(0);
+}
 
 // удаление файла настроек (сброс на заводские настройки)
 void factReset(String mod) {
@@ -526,39 +553,6 @@ void get_index() {
 
 
 
-
-
-
-
-// функция обновления времени с NTP-сервера
-void getNTPtime() {
-  timeClient.begin();
-  Serial.println("Установка времени");
-  // Установка часового пояса (смещения от GMT): 1 час - 3600, 18000 - Екатеринбург +5
-  Serial.println(timeOffset);
-  timeClient.setTimeOffset(timeOffset);
-
-  // обновление времени с NTP-сервера
-  while (!timeClient.update()) {
-    timeClient.forceUpdate();
-  }
-  // вывод даты и времени в формате YYYY-MM-DDTHH:mm:ssZ
-  formattedDate = timeClient.getFormattedDate();
-  Serial.println("Текущая дата: " + formattedDate);
-
-  // вывод даты и времени
-  int splitT = formattedDate.indexOf("T");
-  dayStamp = formattedDate.substring(0, splitT);
-  timeStamp = formattedDate.substring(splitT + 1, formattedDate.length() - 1); // время
-  Serial.print("Сегодня: ");
-  Serial.println(dayStamp);
-
-  firstLine1 = "Сегодня";
-  secondLine1 = dayStamp;
-  lcd_change(0);
-}
-
-
 // Замена плейсхолдеров на значение температуры, влажности, времени, даты
 String processor(const String& var) {
   Serial.println(var);
@@ -601,7 +595,7 @@ String processor(const String& var) {
 
 
 // запись данных в файл
-void writeFile(fs::FS &fs, const char * path, String message) // const char * message)
+void writeFile(fs::FS &fs, const char * path, String message)
 {
   Serial.printf("Записываю файл: %s\n", path);
 
@@ -676,7 +670,6 @@ void getTemp(){
   data_file = "/" + daySt_file + ".csv";
   data_file.toCharArray(data_file_ch, sizeof(data_file_ch));
 
-  // если таймер сработал, то опрашиваем датчик и выводим на экран
   curTemperature = String(bme.readTemperature(), 2);
   curHumidity = String(bme.readHumidity(), 2);
   if (curTemperature == "nan" & curHumidity == "nan")
@@ -720,7 +713,6 @@ void getTemp(){
   request->send(SPIFFS, "/index.html", String(), false, processor); // SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
   });
 
-//    server.send(200, "text/html", SendHTML(dayStamp, timeStamp, curTemperature, curHumidity));
   if (sdExist) writeFile(SD, "/log.txt", dayStamp + " " + timeStamp + " " + "webserver update ok\n");
   if (md == 0) lcd_change(0);
 
@@ -792,7 +784,7 @@ void setup() {
 
   // запуск ElegantOTA и сервера
   AsyncElegantOTA.begin(&server);
-  // server.begin();
+
   // стартовая страница
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
 	request->send(SPIFFS, "/index.html", String(), false, processor);
