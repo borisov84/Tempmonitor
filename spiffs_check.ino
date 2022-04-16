@@ -340,6 +340,45 @@ void makeIni() {
   ESP.restart();
 }
 
+// вывод сообщений об ошибке
+void printErrorMessage(uint8_t e, bool eol = true)
+{
+  switch (e) {
+    case SPIFFSIniFile::errorNoError:
+      Serial.print("no error");
+      break;
+    case SPIFFSIniFile::errorFileNotFound:
+      Serial.print("file not found");
+      break;
+    case SPIFFSIniFile::errorFileNotOpen:
+      Serial.print("file not open");
+      break;
+    case SPIFFSIniFile::errorBufferTooSmall:
+      Serial.print("buffer too small");
+      break;
+    case SPIFFSIniFile::errorSeekError:
+      Serial.print("seek error");
+      break;
+    case SPIFFSIniFile::errorSectionNotFound:
+      Serial.print("Секция not found");
+      break;
+    case SPIFFSIniFile::errorKeyNotFound:
+      Serial.print("key not found");
+      break;
+    case SPIFFSIniFile::errorEndOfFile:
+      Serial.print("end of file");
+      break;
+    case SPIFFSIniFile::errorUnknownError:
+      Serial.print("unknown error");
+      break;
+    default:
+      Serial.print("unknown error value");
+      break;
+  }
+  if (eol)
+    Serial.println();
+}
+
 void readIniWifi() {
   SPIFFSIniFile ini_w("/wifi.ini");
   if (!ini_w.open()) {
@@ -493,44 +532,7 @@ void factReset(String mod) {
   }
 }
 
-// вывод сообщений об ошибке
-void printErrorMessage(uint8_t e, bool eol = true)
-{
-  switch (e) {
-    case SPIFFSIniFile::errorNoError:
-      Serial.print("no error");
-      break;
-    case SPIFFSIniFile::errorFileNotFound:
-      Serial.print("file not found");
-      break;
-    case SPIFFSIniFile::errorFileNotOpen:
-      Serial.print("file not open");
-      break;
-    case SPIFFSIniFile::errorBufferTooSmall:
-      Serial.print("buffer too small");
-      break;
-    case SPIFFSIniFile::errorSeekError:
-      Serial.print("seek error");
-      break;
-    case SPIFFSIniFile::errorSectionNotFound:
-      Serial.print("Секция not found");
-      break;
-    case SPIFFSIniFile::errorKeyNotFound:
-      Serial.print("key not found");
-      break;
-    case SPIFFSIniFile::errorEndOfFile:
-      Serial.print("end of file");
-      break;
-    case SPIFFSIniFile::errorUnknownError:
-      Serial.print("unknown error");
-      break;
-    default:
-      Serial.print("unknown error value");
-      break;
-  }
-  if (eol)
-    Serial.println();
-}
+
 
 // чтение index.html TODO: потом удалить
 void get_index() {
