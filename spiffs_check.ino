@@ -80,6 +80,7 @@ Adafruit_BME280 bme;
 // создание объекта SimpleTimer
 SimpleTimer updateDatatimer;
 SimpleTimer updateTimeTimer;
+SimpleTimer measureTimer;
 
 // Создание объекта NTP клиента для получения времени
 WiFiUDP ntpUDP;
@@ -733,6 +734,19 @@ void getTemp(){
   }
 }
 
+void measure() {
+	curTemperature = String(bme.readTemperature(), 2);
+    curHumidity = String(bme.readHumidity(), 2);
+    if (curTemperature == "nan" & curHumidity == "nan")
+		{
+		  curTemperature = '0';
+		  curHumidity = '0';
+		}
+	firstLine1 = "Темп: " + curTemperature + " C";
+	secondLine1 = "Влаж: " + curHumidity + " %";
+	lcd_change(0);
+}
+
 
 void setup() {
   // обработка прерывания
@@ -836,6 +850,7 @@ void setup() {
     ESP.restart();
   });
   getTemp();
+  measureTimer.setInterval(2000);
 }
 
 
@@ -875,5 +890,10 @@ void loop() {
   if (updateDatatimer.isReady()) {
     getTemp();
     updateDatatimer.reset();
+  }
+  // обновление температуры по таймеру
+  if (measureTimer.isReady()) {
+	measure();
+	measureTimer.reset();
   }
 }
