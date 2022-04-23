@@ -10,6 +10,9 @@
 #include <AsyncElegantOTA.h>
 #include "ESP32FtpServer.h"
 
+// для отправки почты
+#include <ESP_Mail_Client.h>
+
 //для BME280
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -30,6 +33,7 @@
 
 bool firstStart = false; // если устройство не настроено
 bool sdExist = true; // есть ли Sd карта
+bool alarmed = true; // было ли сообщение о перегреве
 
 String wifi_ssid;
 String wifi_pass;
@@ -77,6 +81,9 @@ FtpServer ftpSrv;   //set #define FTP_DEBUG in ESP32FtpServer.h to see ftp verbo
 // создание объекта Adafruit_BME280
 Adafruit_BME280 bme;
 
+// создание объекта SMTPSession
+SMTPSession smtp;
+
 // создание объекта SimpleTimer
 SimpleTimer updateDatatimer;
 SimpleTimer updateTimeTimer;
@@ -88,6 +95,9 @@ NTPClient timeClient(ntpUDP);
 
 // создание объекта lcd
 LCD_1602_RUS lcd(0x27, 16, 2);
+
+// Callback функция для получения статуса отправки
+void smtpCallback(SMTP_Status status);
 
 // функция для изменения режимов отображения экрана (через прерывания)
 void IRAM_ATTR chTxt()
@@ -744,9 +754,87 @@ void measure() {
 		}
 	firstLine1 = "Темп: " + curTemperature + " C";
 	secondLine1 = "Влаж: " + curHumidity + " %";
-	lcd_change(0);
+  // если режим отображения 0, то обновляем данные на экране
+  if (md == 0) {
+    lcd_change(0);
+  }
+  // если температура выше 30 градусов и флаг оповещения ЛОЖЬ, то шлем емейл
+  if (bme.readTemperature() > 30 & alarmed == false) {
+    sendEmail(String(bme.readTemperature(),2));
+    alarmed = true; // ставим флаг в ИСТИНУ, чтобы постоянно не слать почту
+  } // если температура ниже 30, то флаг ЛОЖЬ
+  else {
+    alarmed = false;
+  }
 }
 
+void smtpCallback(SMTP_Status status){
+  /* Print the current status */
+  Serial.println(status.info());
+
+  /* Print the sending result */
+  if (status.success()){
+    Serial.println("----------------");
+    ESP_MAIL_PRINTF("Message sent success: %d\n", status.completedCount());
+    ESP_MAIL_PRINTF("Message sent failled: %d\n", status.failedCount());
+    Serial.println("----------------\n");
+    struct tm dt;
+
+    for (size_t i = 0; i < smtp.sendingResult.size(); i++){
+      /* Get the result item */
+      SMTP_Result result = smtp.sendingResult.getItem(i);
+      time_t ts = (time_t)result.timestamp;
+      localtime_r(&ts, &dt);
+
+      ESP_MAIL_PRINTF("Message No: %d\n", i + 1);
+      ESP_MAIL_PRINTF("Status: %s\n", result.completed ? "success" : "failed");
+      ESP_MAIL_PRINTF("Date/Time: %d/%d/%d %d:%d:%d\n", dt.tm_year + 1900, dt.tm_mon + 1, dt.tm_mday, dt.tm_hour, dt.tm_min, dt.tm_sec);
+      ESP_MAIL_PRINTF("Recipient: %s\n", result.recipients);
+      ESP_MAIL_PRINTF("Subject: %s\n", result.subject);
+    }
+    Serial.println("----------------\n");
+  }
+}
+
+void sendEmail(String temp) {
+  // отладка почты в com-порт
+  smtp.debug(1);
+
+  // установка callback функции для получения результата отправки
+  smtp.callback(smtpCallback);
+
+  // объявление конфигурации
+  ESP_Mail_Session session;
+
+  session.server.host_name = "smtp.gmail.com";
+  session.server.port = 465;
+  session.login.email = "8405ab@gmail.com";
+  session.login.password = "izmkmjurhpxtqhwl";
+  session.login.user_domain = "";
+
+  // объявление класса сообщения
+  SMTP_Message message;
+
+  message.sender.name = "ESP32";
+  message.sender.email = "8405ab5@gmail.com";
+  message.subject = "ESP32 Alarm";
+  message.addRecipient("Sveta", "snkudri@gmail.com");
+
+  /*Send HTML message*/
+  String htmlMsg = "<div style=\"color:#2f4468;\"><h1>High Temperature - " + temp + "</h1></div>";
+  message.html.content = htmlMsg.c_str();
+  message.html.content = htmlMsg.c_str();
+  message.text.charSet = "us-ascii";
+  message.html.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
+
+  if (!smtp.connect(&session))
+    return;
+
+  /* Start sending Email and close the session */
+  if (!MailClient.sendMail(&smtp, &message))
+    Serial.println("Error sending Email, " + smtp.errorReason());
+
+}
 
 void setup() {
   // обработка прерывания
@@ -788,6 +876,7 @@ void setup() {
   firstLine1 = "Темп: " + String(bme.readTemperature(), 2) + " C";
   secondLine1 = "Влаж: " + String(bme.readHumidity(), 2) + " %";
   lcd_change(0);
+
 
   // установка таймеров
   // интервал между измерениями
