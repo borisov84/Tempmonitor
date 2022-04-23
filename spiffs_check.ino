@@ -808,8 +808,8 @@ void sendEmail(String temp) {
 
   session.server.host_name = "smtp.gmail.com";
   session.server.port = 465;
-  session.login.email = "8405ab@gmail.com";
-  session.login.password = "izmkmjurhpxtqhwl";
+  session.login.email = "";
+  session.login.password = "";
   session.login.user_domain = "";
 
   // объявление класса сообщения
